@@ -1,100 +1,87 @@
-# REST to In-Memory Queue with Apache Camel & Spring Boot
+# **Event-Driven Microservice with Apache Camel and Kafka**
 
-This project is a simple, containerized microservice that demonstrates a common integration pattern using Apache Camel. It exposes a REST API endpoint that accepts JSON data, sends it to an asynchronous in-memory queue, and processes it.
+This project is a containerized, event-driven microservice that demonstrates a common and robust enterprise integration pattern. It uses Apache Camel to expose a REST API that asynchronously processes orders by publishing them as events to an Apache Kafka topic.
 
-## Features
+The application is built to be resilient, featuring a Dead Letter Channel (DLC) error handling pattern to safely quarantine messages that fail processing after multiple retries.
 
-  * **REST API:** Exposes a `POST /api/submitOrder` endpoint to accept new order data.
-  * **Asynchronous Processing:** Uses an in-memory SEDA queue to decouple the API from the message processing, a fundamental microservice pattern.
-  * **Containerized:** Fully containerized using Docker for easy deployment and portability.
-  * **Built with Apache Camel:** Showcases the power and simplicity of Camel's Java DSL for defining integration routes.
+## **Features**
 
------
+* **REST API:** Exposes a POST /api/submitOrder endpoint to accept new order data.  
+* **Event-Driven:** Uses Apache Kafka as a durable and scalable message broker to decouple the API from the backend processing.  
+* **Resilient:** Implements an enterprise error handling pattern (Dead Letter Channel) to ensure failed messages are not lost.  
+* **Containerized:** The entire required infrastructure (Apache Kafka) is defined in a docker-compose.yml file for easy, one-command startup.
 
-## Technologies Used
+## **Technologies Used**
 
-  * **Java 23**
-  * **Spring Boot 3.2.5**
-  * **Apache Camel 4.4.2**
-  * **Maven**
-  * **Docker**
+* **Java 17**  
+* **Spring Boot 3.2.5**  
+* **Apache Camel 4.4.2**  
+* **Apache Kafka**  
+* **Maven**  
+* **Docker & Docker Compose**
 
------
-
-## Prerequisites
+## **Prerequisites**
 
 Before you begin, ensure you have the following installed on your system:
 
-  * [Java Development Kit (JDK) 23 or later](https://www.oracle.com/java/technologies/downloads/)
-  * [Apache Maven](https://maven.apache.org/download.cgi)
-  * [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+* [Java Development Kit (JDK) 17 or later](https://adoptium.net/)  
+* [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 
------
+## **How to Run the System**
 
-## How to Run
+This is a multi-part system consisting of the Kafka infrastructure and the Camel application. They must be started in order.
 
-Follow these steps to build and run the application in a Docker container.
+### **1\. Start the Kafka Infrastructure**
 
-### 1\. Clone the Repository
+In a terminal at the root of the project, run the following command. This will start an Apache Kafka broker in a Docker container.
 
-```bash
-git clone <your-github-repository-url>
-cd camel-rest-project
-```
+docker-compose up \-d
 
-### 2\. Package the Application
+Give the container a minute to initialize fully. You can check its status with docker ps.
 
-Use the Maven wrapper to build the application's `.jar` file.
+### **2\. Run the Camel Application**
 
-```bash
-./mvnw clean package
-```
+In a **new, separate terminal**, navigate to the project root and run the application using the Maven wrapper.
 
-### 3\. Build the Docker Image
+./mvnw spring-boot:run
 
-Build the container image using the provided `Dockerfile`.
+The application will start up and connect to the Kafka broker running in Docker.
 
-```bash
-docker build -t camel-rest-project .
-```
+## **How to Use**
 
-### 4\. Run the Docker Container
+The system is now running and ready to accept requests.
 
-Run the application inside a new container. This command maps port 8080 on your local machine to port 8080 in the container.
+### **1\. Send a Test Request**
 
-```bash
-docker run -d -p 8080:8080 camel-rest-project
-```
+You can use a tool like Postman or curl to send a POST request to the endpoint.
 
------
+**To send a successful order:**
 
-## How to Use
-
-The application is now running and ready to accept requests.
-
-### Send a Test Request
-
-You can use a tool like Postman or the `curl` command to send a `POST` request to the endpoint.
-
-```bash
-curl -X POST -H "Content-Type: application/json" \
--d '{"orderId": "123", "product": "Awesome Camel Book", "quantity": 1}' \
+curl \-X POST \-H "Content-Type: application/json" \\  
+\-d '{"orderId": "KAFKA-001", "product": "Kafka Book"}' \\  
 http://localhost:8080/api/submitOrder
-```
 
-### Check the Logs
+**To send an order that will fail:**
 
-To confirm the message was processed, you can view the logs from the running container. First, get the container ID:
+curl \-X POST \-H "Content-Type: application/json" \\  
+\-d '{"orderId": "KAFKA-999", "product": "This will fail"}' \\  
+http://localhost:8080/api/submitOrder
 
-```bash
-docker ps
-```
+### **2\. Check the Application Logs**
 
-Then, view the logs using that ID:
+In the terminal where your Camel application is running, you will see log output indicating that the messages have been received from Kafka and processed.
 
-```bash
-docker logs <your-container-id>
-```
+### **3\. (Optional) View Messages Directly in Kafka**
 
-You should see a log entry similar to this:
-`INFO --- [ seda://orderQueue] queue-processing-route : Received a new order: {"orderId": "123", "product": "Awesome Camel Book", "quantity": 1}`
+To see the raw messages in the Kafka topics:
+
+1. **Find the Kafka container name:** docker ps (it will be something like camel-rest-project-kafka-1).  
+2. **Connect to the container:** docker exec \-it \<your-kafka-container-name\> /bin/bash  
+3. **Run a console consumer:**  
+   * To see successful orders:  
+     kafka-console-consumer.sh \--bootstrap-server localhost:9092 \--topic processedOrders \--from-beginning
+
+   * To see failed orders (in the Dead Letter Channel):  
+     kafka-console-consumer.sh \--bootstrap-server localhost:9092 \--topic dead-letter-topic \--from-beginning
+
+To stop the system, press Ctrl+C in the application terminal and then run docker-compose down in the first terminal.
