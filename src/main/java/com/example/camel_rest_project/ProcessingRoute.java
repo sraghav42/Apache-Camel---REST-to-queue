@@ -4,19 +4,14 @@ import org.apache.camel.builder.RouteBuilder;
 import org.springframework.stereotype.Component;
 
 @Component
-public class MyCamelRoutes extends RouteBuilder{
+public class ProcessingRoute extends RouteBuilder {
     @Override
     public void configure() throws Exception {
-
         errorHandler(deadLetterChannel("kafka:dead-letter-topic")
             .useOriginalMessage()
             .maximumRedeliveries(2)
             .redeliveryDelay(1000));
 
-        rest("/api")
-            .post("/submitOrder")
-            .to("kafka:incomingOrders");
-        
         from("kafka:incomingOrders")
             .routeId("kafka-processing-route")
             .log("Received a new order from Kafka: ${body}")
